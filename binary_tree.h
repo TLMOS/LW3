@@ -1,5 +1,5 @@
 #include <cstdlib>
-#include <cstring>
+#include <string>
 #include <stdexcept>
 #include <cassert>
 #include <iostream>
@@ -34,6 +34,9 @@ class BTree : public ICollection<T>
 private:
 	BNode<T>* root_;
 	size_t size_;
+	bool is_threaded_;
+
+	void Destructor(BNode<T>* node);
 
 	static size_t GetHeight(BNode<T>* node);
 	static void UpdateHeight(BNode<T>* node);
@@ -60,12 +63,14 @@ private:
 	static void Thread(BNode<T>* node, BNode<T>* left_thread, BNode<T>* right_thread);
 	void Thread(); 
 
+	static BNode<T>* Compute(std::string* src, std::string sep[4], char type[3]);
 	static std::string ToString(BNode<T>* node, std::string format);
 
 public:
+	~BTree();
 	BTree();
 	BTree(T* keys, size_t count);
-	BTree(BTree<T>* tree);
+	BTree(const BTree<T>& tree);
 	BTree(std::string src, std::string format);
 
 	BNode<T>* GetRoot();
@@ -88,15 +93,23 @@ public:
 	//ICollection
 	virtual T GetFirst() const;
 	virtual T GetLast() const;
-	virtual T Get(size_t index) const;
+	virtual T Get(size_t index);
 	virtual size_t GetSize() const;
-	virtual const T& operator[](size_t index) const;
+	virtual const T& operator[](size_t index);
 };
+
+template<class T>
+inline BTree<T>::~BTree()
+{
+	if(root_)
+		Destructor(root_);
+}
 
 template<class T>
 BTree<T>::BTree() {
 	root_ = NULL;
 	size_ = 0;
+	is_threaded_ = true;
 }
 
 template<class T>
@@ -105,13 +118,19 @@ inline BTree<T>::BTree(T* keys, size_t count)
 	root_ = NULL;
 	for (int i = 0; i < count; i++)
 		Insert(keys[i]);
+	is_threaded_ = true;
+	Thread();
 }
 
 template<class T>
-inline BTree<T>::BTree(BTree<T>* tree)
+inline BTree<T>::BTree(const BTree<T>& tree)
 {
-	root_ = Copy(tree->root_);
-	size_ = tree->GetSize();
+	if (tree.root_)
+		root_ = Copy(tree.root_);
+	else
+		root_ = NULL;
+	size_ = tree.GetSize();
+	is_threaded_ = true;
 	Thread();
 }
 
@@ -123,7 +142,7 @@ inline int TFromString(std::string s) {
 }
 
 template<class T>
-inline BNode<T>* Compute (std::string* src, std::string sep[4], char type[3])
+inline BNode<T>* BTree<T>::Compute (std::string* src, std::string sep[4], char type[3])
 {
 	BNode<T>* node = new BNode<T>(T());
 	node->left_is_thread = true;
@@ -152,7 +171,7 @@ inline BNode<T>* Compute (std::string* src, std::string sep[4], char type[3])
 			}
 		}
 		else
-			leaf = Compute<T>(src, sep, type);
+			leaf = Compute(src, sep, type);
 		if (leaf)
 		{
 			if (type[i] == 'L')
@@ -169,6 +188,7 @@ inline BNode<T>* Compute (std::string* src, std::string sep[4], char type[3])
 		size_t closing_index = src->find(sep[i + 1]);
 		*src = src->substr(closing_index, src->length() - closing_index);
 	}
+	UpdateHeight(node);
 	return node;
 }
 
@@ -206,10 +226,9 @@ inline BTree<T>::BTree(std::string src, std::string format)
 	sep[2] = format.substr(index[1] + 1, (index[2] - index[1] - 1));
 	sep[3] = format.substr(index[2] + 1, (format.length() - index[1] - 1));
 
-	//std::cout << sep[0] << type[0] << sep[1] << type[1] << sep[2] << type[2] << sep[3] << '\n';
-
-	root_ = Compute<T>(&src, sep, type);
+	root_ = Compute(&src, sep, type);
 	size_ = GetSize(root_);
+	is_threaded_ = true;
 	Thread();
 }
 
@@ -230,7 +249,7 @@ inline void BTree<T>::Insert(T k)
 {
 	root_ = Insert(root_, k);
 	size_++;
-	Thread();
+	is_threaded_ = false;
 }
 
 template<class T>
@@ -241,7 +260,7 @@ inline void BTree<T>::Remove(T k)
 
 	root_ = Remove(root_, k);
 	size_--;
-	Thread();
+	is_threaded_ = false;
 }
 
 template<class T>
@@ -259,6 +278,8 @@ inline bool BTree<T>::Equals(BTree<T>* tree)
 template<class T>
 inline bool BTree<T>::Contains(BTree<T>* sub_tree)
 {
+	if(!is_threaded_)
+		Thread();
 	BNode<T>* node = root_;
 	while (node) {
 		while (!node->left_is_thread)
@@ -282,6 +303,8 @@ template<class T>
 inline BTree<T>* BTree<T>::GetSubTree(T k)
 {
 	BNode<T>* node = Find(k);
+	if(!node)
+		throw std::invalid_argument("k not in tree.");
 	BTree<T>* tree = new BTree<T>();
 	tree->root_ = Copy(node);
 	tree->size_ = GetSize(node);
@@ -292,6 +315,8 @@ inline BTree<T>* BTree<T>::GetSubTree(T k)
 template<class T>
 inline BTree<T>* BTree<T>::Map(T(*f)(T))
 {
+	if (!is_threaded_)
+		Thread();
 	BTree<T>* tree = new BTree<T>();
 	BNode<T>* node = root_;
 	while (node) {
@@ -313,6 +338,8 @@ inline BTree<T>* BTree<T>::Map(T(*f)(T))
 template<class T>
 inline BTree<T>* BTree<T>::Where(bool(*f)(T))
 {
+	if (!is_threaded_)
+		Thread();
 	BTree<T>* tree = new BTree<T>();
 	BNode<T>* node = root_;
 	while (node) {
@@ -336,6 +363,8 @@ inline BTree<T>* BTree<T>::Where(bool(*f)(T))
 template<class T>
 inline T BTree<T>::Reduce(T(*f)(T, T), T c)
 {
+	if (!is_threaded_)
+		Thread();
 	BNode<T>* node = root_;
 	while (node) {
 		while (!node->left_is_thread)
@@ -386,11 +415,13 @@ inline T BTree<T>::GetLast() const
 }
 
 template<class T>
-inline T BTree<T>::Get(size_t index) const
+inline T BTree<T>::Get(size_t index)
 {
 	if (index < 0 || index >= size_)
 		throw std::out_of_range("Index out of range");
 
+	if (!is_threaded_)
+		Thread();
 	size_t count = 0;
 	BNode<T>* node = root_;
 	while (true) {
@@ -418,11 +449,13 @@ inline size_t BTree<T>::GetSize() const
 }
 
 template<class T>
-inline const T& BTree<T>::operator[](size_t index) const
+inline const T& BTree<T>::operator[](size_t index)
 {
 	if (index < 0 || index >= size_)
 		throw std::out_of_range("Index out of range");
 
+	if (!is_threaded_)
+		Thread();
 	size_t count = 0;
 	BNode<T>* node = root_;
 	while (true) {
@@ -461,6 +494,16 @@ inline int BTree<T>::BalanceFactor(BNode<T>* node)
 	size_t right_height = node->right_is_thread ? 0 : GetHeight(node->right);
 	size_t left_height = node->left_is_thread ? 0 : GetHeight(node->left);
 	return right_height - left_height;
+}
+
+template<class T>
+inline void BTree<T>::Destructor(BNode<T>* node)
+{
+	if (!node->left_is_thread)
+		Destructor(node->left);
+	if (!node->right_is_thread)
+		Destructor(node->right);
+	delete node;
 }
 
 template<class T>

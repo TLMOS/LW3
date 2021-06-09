@@ -148,10 +148,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="LW3.cpp" />
+    <ClCompile Include="simple_interpreter.cpp" />
+    <ClCompile Include="tests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="binary_tree.h" />
     <ClInclude Include="collection_interface.h" />
+    <ClInclude Include="simple_interpreter.h" />
+    <ClInclude Include="tests.h" />
+    <ClInclude Include="set.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

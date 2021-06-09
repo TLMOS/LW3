@@ -18,12 +18,27 @@
     <ClCompile Include="LW3.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="tests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="simple_interpreter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="collection_interface.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="binary_tree.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="set.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="tests.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="simple_interpreter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
